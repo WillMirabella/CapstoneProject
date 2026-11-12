@@ -109,7 +109,9 @@ class SimConfig:
 
     def validate(self):
         if not 0 < self.telodyne_pos < self.keyence_pos < self.elp_pos < self.exit_pos:
-            raise ValueError("cameras must sit in order between the entry and exit sensors")
+            raise ValueError(
+                "cameras must sit in order between the entry and exit sensors"
+            )
         max_on_belt = int(self.exit_pos / self.can_spacing) + 1
         if max_on_belt >= ACN_MODULO:
             raise ValueError(
@@ -173,11 +175,15 @@ def run_simulation(config=None):
 
     cameras = {
         TelodyneCamera.NAME: (
-            TelodyneCamera(scheduler, switch, RejectorPi.PORT, config.telodyne_processing),
+            TelodyneCamera(
+                scheduler, switch, RejectorPi.PORT, config.telodyne_processing
+            ),
             config.telodyne_pos,
         ),
         KeyenceCamera.NAME: (
-            KeyenceCamera(scheduler, switch, RejectorPi.PORT, config.keyence_processing),
+            KeyenceCamera(
+                scheduler, switch, RejectorPi.PORT, config.keyence_processing
+            ),
             config.keyence_pos,
         ),
         ElpCamera.NAME: (
@@ -231,14 +237,22 @@ def print_summary(result):
     print("=== Rejector Simulation (No-Star, 1-byte ACN) ===")
     print(f"Defective cans:      {len(result.defective_ids)}")
     print(f"Rejected cans:       {len(result.rejected_ids)}")
-    print(f"False rejects:       {len(result.false_rejects)} {sorted(result.false_rejects)[:10]}")
-    print(f"Missed rejects:      {len(result.missed_rejects)} {sorted(result.missed_rejects)[:10]}")
+    print(
+        f"False rejects:       {len(result.false_rejects)} {sorted(result.false_rejects)[:10]}"
+    )
+    print(
+        f"Missed rejects:      {len(result.missed_rejects)} {sorted(result.missed_rejects)[:10]}"
+    )
     print(f"ACN mismatches:      {len(result.acn_mismatches)}")
     for name, camera in result.cameras.items():
         print(f"  {name:<9} requests sent: {camera.requests_sent}")
-    print(f"Switch sent/dropped: {result.switch.packets_sent}/{result.switch.packets_dropped}")
-    print(f"Rj-Pi received:      {rejector.packets_received} "
-          f"(invalid {rejector.invalid_packets}, late {rejector.late_packets})")
+    print(
+        f"Switch sent/dropped: {result.switch.packets_sent}/{result.switch.packets_dropped}"
+    )
+    print(
+        f"Rj-Pi received:      {rejector.packets_received} "
+        f"(invalid {rejector.invalid_packets}, late {rejector.late_packets})"
+    )
     print(f"Cans left on belt:   {rejector.cans_on_belt}")
     print("RESULT:", "PASS" if result.passed else "FAIL")
 
@@ -249,18 +263,22 @@ def main(argv=None):
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--defect-rate", type=float, default=0.05)
     parser.add_argument("--drop-rate", type=float, default=0.0)
-    parser.add_argument("--latency", type=float, default=0.002, help="network latency (s)")
+    parser.add_argument(
+        "--latency", type=float, default=0.002, help="network latency (s)"
+    )
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args(argv)
 
-    result = run_simulation(SimConfig(
-        num_cans=args.cans,
-        seed=args.seed,
-        defect_rate=args.defect_rate,
-        drop_rate=args.drop_rate,
-        network_latency=args.latency,
-        verbose=args.verbose,
-    ))
+    result = run_simulation(
+        SimConfig(
+            num_cans=args.cans,
+            seed=args.seed,
+            defect_rate=args.defect_rate,
+            drop_rate=args.drop_rate,
+            network_latency=args.latency,
+            verbose=args.verbose,
+        )
+    )
     print_summary(result)
     return 0 if result.passed else 1
 
