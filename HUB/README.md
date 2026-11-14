@@ -3,6 +3,9 @@
 Records every can the Rj-Pi handles, labels it with the run it belongs to, and
 serves the operator touchscreen (`/`) and the defect trends dashboard (`/dashboard`).
 
+**Quick start: see [RUNNING.md](RUNNING.md)** for starting the HUB, live runs,
+and testing with the simulator.
+
 The Rj-Pi never waits on the HUB: it sends events over UDP port 5001 and keeps
 rejecting whether or not the HUB is running. Protocol: `../Rejector/notes.md`.
 
