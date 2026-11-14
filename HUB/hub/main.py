@@ -37,6 +37,7 @@ class Hub:
         self.conn = db.connect(db_path)
         self.tracker = Tracker(self.conn)
         self.version = 0  # bumped on every change; live streams watch it
+        self.stopping = False  # set on Ctrl-C so live streams end and the server can exit
 
     def changed(self):
         self.version += 1
@@ -169,7 +170,7 @@ def create_app(db_path="hub.db", udp_host="0.0.0.0", udp_port=UDP_PORT):
 
         async def events():
             sent_version, sent_at = None, 0.0
-            while not await request.is_disconnected():
+            while not hub.stopping and not await request.is_disconnected():
                 now = time.monotonic()
                 if hub.version != sent_version or now - sent_at >= 2.0:
                     sent_version, sent_at = hub.version, now
