@@ -1,7 +1,7 @@
 """Keyence Analysis System.
 
-Counts cans as they pass its trigger to track ACN (1 byte, wraps at 256) and
-sends a 1-byte reject request [ACN] when it finds a defect. The Rj-Pi knows
+Counts cans as they pass its trigger to track RACN (1 byte, wraps at 256) and
+sends a 1-byte reject request [RACN] when it finds a defect. The Rj-Pi knows
 the packet is from the Keyence because it is the only 1-byte packet.
 """
 
@@ -16,21 +16,21 @@ class KeyenceCamera:
         self.switch = switch
         self.rejector_port = rejector_port
         self.processing_time = processing_time
-        self.acn = 0
+        self.racn = 0
         self.requests_sent = 0
 
     def on_can(self, can):
         """Camera trigger: a can is in front of the camera."""
-        self.acn = (self.acn + 1) % ACN_MODULO
+        self.racn = (self.racn + 1) % ACN_MODULO
         if self.inspect(can):
-            self.scheduler.schedule(self.processing_time, self.send_reject, self.acn)
+            self.scheduler.schedule(self.processing_time, self.send_reject, self.racn)
 
     def inspect(self, can):
         return self.NAME in can.defects
 
-    def build_packet(self, acn):
-        return bytes([acn])
+    def build_packet(self, racn):
+        return bytes([racn])
 
-    def send_reject(self, acn):
+    def send_reject(self, racn):
         self.requests_sent += 1
-        self.switch.send(self.rejector_port, self.build_packet(acn))
+        self.switch.send(self.rejector_port, self.build_packet(racn))
