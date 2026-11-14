@@ -184,7 +184,9 @@ function renderBanners() {
 
 function renderFinishing() {
   $("#finishing").replaceChildren(...store.live.finishing.map((s) =>
-    h("span", {}, `Run #${s.run.id} (${runTitle(s.run)}) finishing: `, h("b", {}, s.on_belt), " can(s) still on the belt")));
+    h("span", {}, `Run #${s.run.id} (${runTitle(s.run)}) finishing: `, h("b", {}, s.on_belt),
+      " can(s) still on the belt · ", h("b", { class: "ok" }, fmt(s.passed)), " passed · ",
+      fmt(s.rejected), " rejected")));
 }
 
 // --- Idle view ----------------------------------------------------------------------
@@ -423,6 +425,7 @@ function renderLastRun() {
       } }, "Dismiss")),
     h("div", { class: "summary-grid" },
       h("span", {}, "Cans ", h("b", {}, fmt(s.entered))),
+      h("span", { class: "passed" }, "Passed inspection ", h("b", {}, fmt(s.passed))),
       h("span", {}, "Rejected ", h("b", {}, fmt(s.rejected))),
       h("span", {}, "Reject rate ", h("b", {}, pct(s.reject_rate))),
       s.on_belt ? h("span", {}, "Still on belt ", h("b", {}, fmt(s.on_belt))) : null,
@@ -464,7 +467,8 @@ function buildActive() {
       h("span", { class: "elapsed", id: "elapsed" }, "00:00")),
     h("div", { class: "tiles" },
       tile("t-entered", "Cans entered"), tile("t-onbelt", "On belt"),
-      tile("t-rejected", "Rejected", "bad"), tile("t-rate", "Reject rate")),
+      tile("t-passed", "Passed inspection", "good"), tile("t-rejected", "Rejected", "bad"),
+      tile("t-rate", "Reject rate")),
     h("div", { class: "cam-tiles" }, CAMERAS.map((c) => h("div", { class: "tile cam-tile" },
       h("div", {}, h("div", { class: "label" }, `${c.name} flags`),
         h("div", { class: "value", id: `t-cam-${c.key}` }, "0")),
@@ -483,6 +487,7 @@ function fillActive(a) {
   const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
   set("t-entered", fmt(a.entered));
   set("t-onbelt", fmt(a.on_belt));
+  set("t-passed", fmt(a.passed));
   set("t-rejected", fmt(a.rejected));
   set("t-rate", pct(a.reject_rate));
   for (const c of CAMERAS) {

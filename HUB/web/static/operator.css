@@ -189,14 +189,16 @@ main {
 .run-head .sub { color: var(--muted); }
 .run-head .elapsed { margin-left: auto; font-size: 20px; font-variant-numeric: tabular-nums; }
 
-.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gap); flex: none; }
+.tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--gap); flex: none; }
 .tile {
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
   padding: 8px 12px;
 }
-.tile .label { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .06em; }
+.tile .label { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tile .value { font-size: clamp(28px, 6vh, 52px); font-weight: 750; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .tile.bad .value { color: var(--bad); }
+.tile.good .value { color: var(--good); }
+.summary-grid .passed b, #finishing b.ok { color: var(--good); }
 .cam-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap); flex: none; }
 .cam-tile { display: flex; justify-content: space-between; align-items: baseline; }
 .cam-tile .value { font-size: 26px; }
