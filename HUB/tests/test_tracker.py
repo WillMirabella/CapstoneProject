@@ -77,6 +77,7 @@ class ProductionRunTests(TrackerTestCase):
         self.assertEqual(summary["exited"], 500)
         self.assertEqual(summary["on_belt"], 0)
         self.assertEqual(summary["rejected"], len(sim.rejected_ids))
+        self.assertEqual(summary["passed"], 500 - len(sim.rejected_ids))
         self.assertEqual(summary["run"]["sku"], "12OZ-STD")
         rejected = {c["acn"] for c in self.cans(run) if c["rejected"]}
         self.assertEqual(rejected, sim.rejected_ids)
@@ -103,6 +104,9 @@ class ProductionRunTests(TrackerTestCase):
                          {i for i in sim.rejected_ids if i <= 150})
         self.assertEqual(self.run_status(runs["a"]), "complete")
         self.assertEqual(self.run_status(runs["b"]), "complete")
+        # Run A's cans that exited after run B started still count for run A.
+        summary_a = reports.run_summary(self.conn, runs["a"])
+        self.assertEqual(summary_a["passed"], 150 - len({i for i in sim.rejected_ids if i <= 150}))
 
     def test_run_stays_finishing_until_last_can_exits(self):
         sim = run_simulation(SimConfig(num_cans=50))
@@ -111,9 +115,15 @@ class ProductionRunTests(TrackerTestCase):
         last_exit = max(i for i, e in enumerate(events) if e["e"] == "exit")
         self.replay(events[:last_exit], after_entry={50: self.tracker.stop_run})
         self.assertEqual(self.run_status(run), "finishing")
-        self.assertEqual(reports.run_summary(self.conn, run)["on_belt"], 1)
+        summary = reports.run_summary(self.conn, run)
+        self.assertEqual(summary["on_belt"], 1)
+        before = summary["passed"] + summary["rejected"]
         self.tracker.handle(events[last_exit])
         self.assertEqual(self.run_status(run), "complete")
+        # The last can still counts toward the run after Stop was pressed.
+        summary = reports.run_summary(self.conn, run)
+        self.assertEqual(summary["passed"] + summary["rejected"], before + 1)
+        self.assertEqual(summary["passed"] + summary["rejected"], 50)
 
     def test_cans_with_no_active_run_are_unassigned(self):
         sim = run_simulation(SimConfig(num_cans=20))

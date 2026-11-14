@@ -85,8 +85,13 @@ class ApiTests(unittest.TestCase):
         state = self.ok("GET", "/api/state")
         self.assertIsNone(state["active"])
         self.assertEqual(state["finishing"][0]["on_belt"], 2)
+        self.assertEqual(state["finishing"][0]["passed"], 0)
 
         self.send(e="exit", acn=1, rejected=False, c1=False, keyence=False, c2=False)
+        # Counted live after Stop, while the run is still finishing.
+        state = self.ok("GET", "/api/state")
+        self.assertEqual(state["finishing"][0]["passed"], 1)
+        self.assertEqual(state["finishing"][0]["on_belt"], 1)
         self.send(e="exit", acn=2, rejected=True, c1=True, keyence=False, c2=False)
         detail = self.ok("GET", f"/api/runs/{run}")
         self.assertEqual(detail["run"]["status"], "complete")

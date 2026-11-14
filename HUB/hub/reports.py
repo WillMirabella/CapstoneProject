@@ -20,6 +20,7 @@ def run_summary(conn, run_id):
         "  count(*) FILTER (WHERE exited_at IS NOT NULL) AS exited,"
         "  count(*) FILTER (WHERE exited_at IS NULL AND lost = 0) AS on_belt,"
         "  count(*) FILTER (WHERE rejected = 1) AS rejected,"
+        "  count(*) FILTER (WHERE rejected = 0) AS passed,"
         "  count(*) FILTER (WHERE recovered = 1) AS recovered,"
         "  count(*) FILTER (WHERE lost = 1) AS lost,"
         "  coalesce(sum(c1), 0) AS c1, coalesce(sum(keyence), 0) AS keyence,"
@@ -37,6 +38,8 @@ def run_summary(conn, run_id):
         "exited": c["exited"],
         "on_belt": c["on_belt"],
         "rejected": c["rejected"],
+        # Reached the exit sensor and was not rejected (rejected is NULL until exit).
+        "passed": c["passed"],
         "reject_rate": c["rejected"] / c["exited"] if c["exited"] else None,
         "recovered": c["recovered"],
         "lost": c["lost"],
