@@ -153,6 +153,10 @@ def create_app(db_path="hub.db", udp_host="0.0.0.0", udp_port=UDP_PORT):
     async def operator_page():
         return FileResponse(WEB / "operator.html")
 
+    @app.get("/run/{run_id}", include_in_schema=False)
+    async def run_page(run_id: int):
+        return FileResponse(WEB / "operator.html")  # read-only review of one run
+
     @app.get("/dashboard", include_in_schema=False)
     async def dashboard_page():
         return FileResponse(WEB / "dashboard.html")
@@ -231,6 +235,9 @@ def create_app(db_path="hub.db", udp_host="0.0.0.0", udp_port=UDP_PORT):
         detail = reports.run_detail(hub.conn, run_id)
         if detail is None:
             raise HTTPException(404, f"No run {run_id}")
+        detail["rejections"] = reports.recent_rejections(
+            hub.conn, run_id, limit=reports.REVIEW_REJECTION_ROWS)
+        detail["now"] = time.time()
         return detail
 
     @app.post("/api/runs/production")

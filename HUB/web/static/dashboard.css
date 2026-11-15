@@ -184,6 +184,10 @@ th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--gri
 th { color: var(--text-2); font-weight: 600; }
 td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
 tbody tr:hover { background: var(--hover); }
+tbody tr.link-row { cursor: pointer; }
+tbody tr.link-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.run-link { color: var(--accent); font-weight: 600; text-decoration: none; }
+.run-link:hover { text-decoration: underline; }
 td .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
 .status { font-size: 12px; font-weight: 600; }
 .status-icon { margin-right: 4px; }
