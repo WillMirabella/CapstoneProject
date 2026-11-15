@@ -453,8 +453,7 @@ function renderLastRun() {
 
 // --- Active run view ------------------------------------------------------------------
 
-function buildActive() {
-  const a = store.live.active;
+function buildActive(a = store.live.active, review = false) {
   const run = a.run;
   const tile = (id, label, cls = "") => h("div", { class: `tile ${cls}` },
     h("div", { class: "label" }, label), h("div", { class: "value", id }, "0"));
@@ -463,24 +462,46 @@ function buildActive() {
       h("span", { class: `kind ${run.kind}` }, run.kind),
       h("span", { class: "what" }, runTitle(run)),
       h("span", { class: "sub" }, [run.supplier, run.arrival_date && `arrived ${run.arrival_date}`,
-        `run #${run.id}`, run.operator].filter(Boolean).join(" · ")),
-      h("span", { class: "elapsed", id: "elapsed" }, "00:00")),
-    h("div", { class: "tiles" },
-      tile("t-entered", "Cans entered"), tile("t-onbelt", "On belt"),
-      tile("t-passed", "Passed inspection", "good"), tile("t-rejected", "Rejected", "bad"),
-      tile("t-rate", "Reject rate")),
-    h("div", { class: "cam-tiles" }, CAMERAS.map((c) => h("div", { class: "tile cam-tile" },
-      h("div", {}, h("div", { class: "label" }, `${c.name} flags`),
-        h("div", { class: "value", id: `t-cam-${c.key}` }, "0")),
-      h("div", { class: "pct", id: `t-campct-${c.key}` }, "")))),
+        `run #${run.id}`, run.operator,
+        review && new Date(run.started_at * 1000).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }),
+      ].filter(Boolean).join(" · ")),
+      review ? h("span", { class: `status ${run.status}`, id: "review-status" }, run.status) : null,
+      h("span", { class: "elapsed", id: "elapsed", title: review ? "Time from start to stop" : null }, "00:00")),
+    h("div", { class: "run-body" },
+      h("div", { class: "run-main" },
+        // Primary: the three counts the operator watches.
+        h("div", { class: "tiles hero" },
+          tile("t-entered", "Cans counted"),
+          tile("t-passed", "Passed", "good"),
+          tile("t-rejected", "Rejected", "bad")),
+        // Secondary: per-camera flags.
+        h("div", { class: "cam-tiles" }, CAMERAS.map((c) => h("div", { class: "tile cam-tile" },
+          h("div", {}, h("div", { class: "label" }, `${c.name} flags`),
+            h("div", { class: "value", id: `t-cam-${c.key}` }, "0")),
+          h("div", { class: "pct", id: `t-campct-${c.key}` }, ""))))),
+      // Tertiary: side rail.
+      h("aside", { class: "run-side" },
+        tile("t-onbelt", "On belt", "minor"),
+        tile("t-rate", "Reject rate", "minor"))),
     run.kind === "validation"
       ? h("section", { class: "seedstrip" },
         h("div", { class: "next-can", id: "next-can" }),
         h("div", { class: "seed-chips", id: "seed-chips" }))
-      : h("div", { class: "spacer" }),
-    h("button", { class: "btn btn-stop", id: "stop-btn", onclick: onStop }, "STOP RUN"),
+      : null,
+    h("section", { class: "rejections" },
+      h("div", { class: "rej-head" },
+        h("h2", {}, "Rejections"),
+        h("span", { class: "rej-note", id: "rej-note" }, "")),
+      h("div", { class: "rej-scroll" },
+        h("table", { class: "rej-table" },
+          h("thead", {}, h("tr", {},
+            h("th", {}, "Can #"), h("th", {}, "Time"),
+            CAMERAS.map((c) => h("th", { class: "cam-col" }, c.name)),
+            h("th", {}, "Flagged by"))),
+          h("tbody", { id: "rej-body" })))),
+    review ? null : h("button", { class: "btn btn-stop", id: "stop-btn", onclick: onStop }, "STOP RUN"),
   ];
-  $("#view").replaceChildren(...parts);
+  $("#view").replaceChildren(...parts.filter(Boolean));
 }
 
 function fillActive(a) {
@@ -495,13 +516,20 @@ function fillActive(a) {
     set(`t-campct-${c.key}`, a.exited ? pct(a.flags[c.key] / a.exited) : "");
   }
   tickElapsed();
+  fillRejections(a);
 
   const v = a.validation;
   if (!v) return;
   const next = a.entered + 1;
   const nextSeed = v.seeds.find((s) => s.position === next);
   const nextBox = $("#next-can");
-  if (a.entered >= v.planned_cans) {
+  if (store.review) {
+    const count = (r) => v.seeds.filter((s) => s.result === r).length;
+    nextBox.className = "next-can";
+    nextBox.replaceChildren("Seeded cans: ", h("strong", {}, `${count("caught")} of ${v.seeds.length}`),
+      " caught", count("missed") ? ` · ${count("missed")} missed` : "",
+      count("lost") ? ` · ${count("lost")} lost` : "", count("not run") ? ` · ${count("not run")} not run` : "");
+  } else if (a.entered >= v.planned_cans) {
     nextBox.className = "next-can";
     nextBox.replaceChildren(`All ${v.planned_cans} cans are on the line. Press `, h("strong", {}, "STOP RUN"), ".");
   } else if (nextSeed) {
@@ -525,10 +553,76 @@ function fillActive(a) {
   }));
 }
 
+const clockTime = (t) => (t ? new Date(t * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "–");
+
+function fillRejections(a) {
+  const body = $("#rej-body");
+  if (!body) return;
+  const rows = a.rejections || [];
+  const newest = rows.length ? `${rows[0].position}@${rows[0].exited_at}` : null;
+  const isNew = store.lastRejection !== undefined && newest !== store.lastRejection;
+  store.lastRejection = newest;
+  $("#rej-note").textContent = a.rejected > rows.length
+    ? `Latest ${rows.length} of ${fmt(a.rejected)}` : "";
+  if (!rows.length) {
+    body.replaceChildren(h("tr", {}, h("td", { class: "empty", colspan: CAMERAS.length + 3 },
+      "No rejections yet.")));
+    return;
+  }
+  body.replaceChildren(...rows.map((r, i) => h("tr", { class: i === 0 && isNew ? "fresh" : "" },
+    h("td", { class: "num pos" }, r.position ? `#${r.position}` : "–"),
+    h("td", { class: "num" }, clockTime(r.exited_at)),
+    CAMERAS.map((c) => h("td", { class: "cam-col" },
+      r.flags.includes(c.key) ? h("span", { class: "flag-dot", title: `${c.name} flagged` }, "●") : "")),
+    h("td", { class: r.flags.length ? "" : "muted" },
+      r.flags.length ? r.flags.map(camName).join(" + ") : "No camera flag"))));
+}
+
 function tickElapsed() {
-  const a = store.live && store.live.active;
+  const a = store.review || (store.live && store.live.active);
   const el = $("#elapsed");
-  if (a && el) el.textContent = duration(serverNow() - a.run.started_at);
+  if (a && el) el.textContent = duration((a.run.stopped_at || serverNow()) - a.run.started_at);
+}
+
+// --- Review of a past run (/run/<id>, opened from the dashboard) ---------------------------
+
+const REVIEW_ID = (location.pathname.match(/^\/run\/(\d+)\/?$/) || [])[1];
+
+async function loadReview() {
+  let detail;
+  try {
+    detail = await api("GET", `/api/runs/${REVIEW_ID}`);
+  } catch (err) {
+    $("#view").replaceChildren(h("div", { class: "empty" }, err.message));
+    return;
+  }
+  store.offset = detail.now - Date.now() / 1000;
+  const first = !store.review;
+  store.review = detail;
+  if (first) buildActive(detail, true);
+  const badge = $("#review-status");
+  if (badge) { badge.className = `status ${detail.run.status}`; badge.textContent = detail.run.status; }
+  fillActive(detail);
+  // Still running or finishing: keep it up to date.
+  if (detail.run.status === "active" || detail.run.status === "finishing") setTimeout(loadReview, 2000);
+}
+
+function startReview() {
+  document.body.classList.add("review");
+  document.title = `Run #${REVIEW_ID}`;
+  $("#rjpi").remove();
+  $("#belt").remove();
+  const back = $(".toplink");
+  back.textContent = "← Dashboard";
+  back.addEventListener("click", (ev) => {
+    // Came from the dashboard: go back so its filters are kept.
+    if (document.referrer && new URL(document.referrer).pathname === "/dashboard") {
+      ev.preventDefault();
+      history.back();
+    }
+  });
+  $(".brand").after(h("span", { class: "topstat" }, `Run #${REVIEW_ID} · review`));
+  loadReview();
 }
 
 function onStop() {
@@ -614,5 +708,9 @@ setInterval(() => {
 }, 1000);
 $("#clock").textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-loadShipments();
-connect();
+if (REVIEW_ID) {
+  startReview();
+} else {
+  loadShipments();
+  connect();
+}

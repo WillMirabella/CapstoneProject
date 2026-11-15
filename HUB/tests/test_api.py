@@ -59,6 +59,34 @@ class ApiTests(unittest.TestCase):
         self.assertIsNone(shipment["po_number"])  # blank -> NULL
         self.assertEqual([l["sku"] for l in shipment["lines"]], ["12OZ-STD", "16OZ-TALL"])
 
+    def test_active_run_lists_rejections(self):
+        shipment, _ = self.add_shipment()
+        self.ok("POST", "/api/runs/production", {"shipment_line_id": shipment["lines"][0]["id"]})
+        for acn in (1, 2, 3):
+            self.send(e="entry", acn=acn)
+        self.send(e="exit", acn=1, rejected=True, c1=True, keyence=True, c2=False)
+        self.send(e="exit", acn=2, rejected=False, c1=False, keyence=False, c2=False)
+        self.send(e="exit", acn=3, rejected=True, c1=False, keyence=False, c2=True)
+        rows = self.ok("GET", "/api/state")["active"]["rejections"]
+        self.assertEqual([r["position"] for r in rows], [3, 1])  # newest first, passed can left out
+        self.assertEqual(rows[0]["flags"], ["c2"])
+        self.assertEqual(rows[1]["flags"], ["c1", "keyence"])
+
+    def test_run_review_page_and_detail(self):
+        shipment, _ = self.add_shipment()
+        run = self.ok("POST", "/api/runs/production",
+                      {"shipment_line_id": shipment["lines"][0]["id"]})["id"]
+        self.send(e="entry", acn=1)
+        self.send(e="exit", acn=1, rejected=True, c1=True, keyence=True, c2=True)
+        self.ok("POST", "/api/runs/stop")
+        detail = self.ok("GET", f"/api/runs/{run}")
+        self.assertEqual(detail["run"]["status"], "complete")
+        self.assertEqual(detail["rejections"][0]["flags"], ["c1", "keyence", "c2"])
+        self.assertIn("now", detail)
+        page = self.client.get(f"/run/{run}")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn("operator.js", page.text)
+
     def test_shipment_validation(self):
         self.assertIn("supplier", self.error("POST", "/api/shipments", {"supplier": " "}))
         self.assertIn("SKU", self.error("POST", "/api/shipments",

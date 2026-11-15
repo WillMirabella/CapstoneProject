@@ -1,5 +1,5 @@
-/* Operator touchscreen. Designed for 800x480 (official Pi 7" display) and up.
-   Dark, high-contrast, large touch targets (>= 48px). No external assets. */
+/* Operator screen. Designed for a laptop (1280px wide and up), still usable on a phone.
+   Dark, high-contrast, large click/touch targets (>= 48px). No external assets. */
 
 :root {
   --bg: #0f1216;
@@ -15,7 +15,8 @@
   --bad: #e5484d;
   --seed: #a78bfa;
   --radius: 10px;
-  --gap: 10px;
+  --gap: 14px;
+  --card-gap: 22px;
   color-scheme: dark;
 }
 
@@ -52,7 +53,9 @@ button, input { font: inherit; color: inherit; }
 .topstat { color: var(--muted); font-variant-numeric: tabular-nums; }
 #clock { margin-left: auto; }
 .toplink { color: var(--muted); text-decoration: none; padding: 6px 4px; }
-@media (max-width: 640px) { .toplink { display: none; } }
+@media (max-width: 640px) { body:not(.review) .toplink { display: none; } }
+.review .toplink { color: var(--text); font-weight: 600; }
+.review .run-head .status { align-self: center; }
 .pill {
   display: inline-flex; align-items: center; gap: 7px;
   padding: 4px 10px; border-radius: 999px;
@@ -76,7 +79,7 @@ main {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--gap);
+  padding: 24px 28px;
   display: flex;
   flex-direction: column;
   gap: var(--gap);
@@ -185,27 +188,39 @@ main {
   padding: 3px 8px; border-radius: 4px; background: var(--good); color: #04140b;
 }
 .run-head .kind.validation { background: var(--seed); color: #17112b; }
-.run-head .what { font-size: 22px; font-weight: 700; }
+.run-head .what { font-size: 26px; font-weight: 700; }
 .run-head .sub { color: var(--muted); }
 .run-head .elapsed { margin-left: auto; font-size: 20px; font-variant-numeric: tabular-nums; }
 
-.tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--gap); flex: none; }
+.run-body { display: grid; grid-template-columns: 1fr 220px; gap: var(--card-gap); flex: none; }
+.run-main { display: flex; flex-direction: column; gap: var(--card-gap); min-width: 0; }
+.run-side { display: flex; flex-direction: column; gap: var(--card-gap); }
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--card-gap); }
 .tile {
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 8px 12px;
+  padding: 14px 18px; min-width: 0;
 }
 .tile .label { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tile .value { font-size: clamp(28px, 6vh, 52px); font-weight: 750; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .tile.bad .value { color: var(--bad); }
 .tile.good .value { color: var(--good); }
+/* Primary counts */
+.hero .tile { padding: 22px 26px 26px; }
+.hero .label { font-size: 16px; }
+.hero .value { font-size: clamp(56px, 6vw, 108px); line-height: 1.05; margin-top: 6px; }
+/* Tertiary side rail */
+.tile.minor { flex: 1; padding: 14px 18px; background: transparent; }
+.tile.minor .label { font-size: 12px; }
+.tile.minor .value { font-size: 34px; margin-top: 4px; font-weight: 650; color: var(--muted); }
 .summary-grid .passed b, #finishing b.ok { color: var(--good); }
-.cam-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap); flex: none; }
+.cam-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--card-gap); }
 .cam-tile { display: flex; justify-content: space-between; align-items: baseline; }
-.cam-tile .value { font-size: 26px; }
-.cam-tile .pct { color: var(--muted); font-size: 14px; }
+.cam-tile { padding: 16px 20px; }
+.cam-tile .value { font-size: 36px; margin-top: 2px; }
+.cam-tile .pct { color: var(--muted); font-size: 16px; }
 
 .seedstrip {
-  flex: 1; min-height: 0;
+  flex: none; max-height: 30vh;
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
   padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; overflow: hidden;
 }
@@ -228,6 +243,33 @@ main {
 .seed-chip.missed { background: #3a1214; border-color: var(--bad); color: #ffb4b6; }
 
 .spacer { flex: 1; min-height: 0; }
+
+/* --- Rejections table --- */
+.rejections {
+  flex: 1; min-height: 240px; display: flex; flex-direction: column;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  overflow: hidden;
+}
+.rej-head { display: flex; align-items: baseline; gap: 12px; padding: 14px 18px 10px; }
+.rej-head h2 { margin: 0; font-size: 15px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+.rej-note { color: var(--muted); font-size: 14px; margin-left: auto; }
+.rej-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+.rej-table { width: 100%; border-collapse: collapse; font-size: 16px; }
+.rej-table th {
+  position: sticky; top: 0; background: var(--panel); z-index: 1;
+  text-align: left; padding: 8px 18px; color: var(--muted); font-size: 13px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .06em; border-bottom: 1px solid var(--line);
+}
+.rej-table td { padding: 9px 18px; border-bottom: 1px solid var(--line); }
+.rej-table tr:last-child td { border-bottom: 0; }
+.rej-table .cam-col { text-align: center; width: 120px; }
+.rej-table .pos { font-weight: 700; }
+.rej-table .muted { color: var(--muted); }
+.rej-table td.empty { text-align: center; color: var(--muted); padding: 28px; }
+.flag-dot { color: var(--bad); font-size: 14px; }
+.rej-table tr.fresh td { animation: fresh 1.6s ease-out; }
+@keyframes fresh { from { background: #3a1214; } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .rej-table tr.fresh td { animation: none; } }
 
 /* --- Last run summary --- */
 .summary {
@@ -295,7 +337,15 @@ dialog { overflow-y: auto; }
 /* --- Small screens --- */
 @media (max-width: 640px) {
   .picker, .validate { grid-template-columns: 1fr; overflow-y: auto; }
-  .tiles { grid-template-columns: repeat(2, 1fr); }
+  main { padding: var(--gap); }
+  :root { --card-gap: 10px; }
+  .run-body { grid-template-columns: 1fr; }
+  .run-side { flex-direction: row; }
+  .hero .value { font-size: 40px; }
+  .hero .label { font-size: 13px; }
+  .cam-tile { flex-direction: column; }
+  .rej-table .cam-col { display: none; }
+  .rej-table th, .rej-table td { padding-left: 10px; padding-right: 10px; }
   .startbar { flex-direction: column; }
   .startbar input { width: 100%; }
   .form-grid { grid-template-columns: 1fr; }

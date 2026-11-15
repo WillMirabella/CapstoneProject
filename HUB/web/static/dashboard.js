@@ -344,14 +344,29 @@ function splitBars(el, rows, { label }) {
 
 // --- Tables -------------------------------------------------------------------------------------
 
-/* columns: [{label, n: bool, color}]; rows: arrays of cells (text or Node). */
-function table(columns, rows, empty = "Nothing in this period.") {
+/* columns: [{label, n: bool, color}]; rows: arrays of cells (text or Node).
+   links: optional array of URLs, one per row, that make the whole row clickable. */
+function table(columns, rows, empty = "Nothing in this period.", links = null) {
   if (!rows.length) return h("div", { class: "empty" }, empty);
+  const rowAttrs = (i) => {
+    const href = links && links[i];
+    if (!href) return {};
+    const open = (ev) => {
+      if (ev.target.closest("a")) return;  // the cell's own link handles it
+      if (ev.metaKey || ev.ctrlKey) window.open(href, "_blank");
+      else location.href = href;
+    };
+    return { class: "link-row", title: "Open this run", onclick: open,
+      onkeydown: (ev) => { if (ev.key === "Enter") open(ev); }, tabindex: "0" };
+  };
   return h("table", {},
     h("thead", {}, h("tr", {}, columns.map((c) => h("th", { class: c.n ? "n" : null, scope: "col" },
       c.color ? h("span", { class: "swatch", style: { background: c.color } }) : null, c.label)))),
-    h("tbody", {}, rows.map((row) => h("tr", {}, row.map((cell, i) => h("td", { class: columns[i].n ? "n" : null }, cell))))));
+    h("tbody", {}, rows.map((row, r) => h("tr", rowAttrs(r),
+      row.map((cell, i) => h("td", { class: columns[i].n ? "n" : null }, cell))))));
 }
+
+const runLink = (id) => h("a", { class: "run-link", href: `/run/${id}` }, `#${id}`);
 
 function statusCell(status) {
   const icon = { complete: "✓", incomplete: "⚠", finishing: "…", active: "●" }[status] || "";
@@ -596,14 +611,15 @@ function renderValidation() {
       { label: "Seeded caught", n: true },
       ...d.cameras.map((c) => ({ label: c.name, n: true, color: CAMERA_COLOR[c.key] })),
       { label: "False rejects", n: true }, { label: "Notes" }],
-    d.validation.map((r) => [when(r.started_at), `#${r.run_id}`, r.operator || "–",
+    d.validation.map((r) => [when(r.started_at), runLink(r.run_id), r.operator || "–",
       r.entered === r.planned_cans ? int(r.entered) : `${int(r.entered)} of ${int(r.planned_cans)}`,
       `${r.caught} of ${r.seeded}`,
       ...d.cameras.map((c) => detectionCell(r.cameras[c.key])),
       warnCell(r.false_rejects),
       r.warnings.length ? h("span", { class: "warn-cell", title: r.warnings.join("\n") },
         h("span", { class: "status-icon" }, "⚠"), r.warnings[0]) : h("span", { class: "muted" }, "–")]),
-    "No validation runs in this period. Start one from the operator screen."));
+    "No validation runs in this period. Start one from the operator screen.",
+    d.validation.map((r) => `/run/${r.run_id}`)));
 }
 
 function showMore(wrap, shown, total, key, noun) {
@@ -622,8 +638,9 @@ function renderRuns() {
     [{ label: "Run", n: true }, { label: "Started" }, { label: "Kind" }, { label: "Supplier" }, { label: "SKU" },
       { label: "Operator" }, { label: "Cans", n: true }, { label: "Rejected", n: true }, { label: "Reject rate", n: true },
       { label: "Status" }],
-    shown.map((r) => [`#${r.id}`, when(r.started_at), r.kind, r.supplier || "–", r.sku || "–", r.operator || "–",
-      int(r.cans), int(r.rejected), r.cans ? pct(r.rejected / r.cans) : "–", statusCell(r.status)])));
+    shown.map((r) => [runLink(r.id), when(r.started_at), r.kind, r.supplier || "–", r.sku || "–", r.operator || "–",
+      int(r.cans), int(r.rejected), r.cans ? pct(r.rejected / r.cans) : "–", statusCell(r.status)]),
+    undefined, shown.map((r) => `/run/${r.id}`)));
   if (runs.length > PREVIEW.allRuns) showMore(wrap, shown.length, runs.length, "allRuns", "runs");
   if (runs.length >= 200) wrap.append(h("p", { class: "sub" }, "Only the latest 200 runs are listed here; the CSV export has every run."));
 }

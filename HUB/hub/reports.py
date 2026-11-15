@@ -199,6 +199,21 @@ def run_detail(conn, run_id):
     return summary
 
 
+REJECTION_ROWS = 100  # newest rejections sent to the operator screen
+REVIEW_REJECTION_ROWS = 2000  # when reviewing a past run from the dashboard
+
+
+def recent_rejections(conn, run_id, limit=REJECTION_ROWS):
+    """The run's most recent rejected cans, newest first, with which cameras flagged each."""
+    rows = conn.execute(
+        "SELECT position, exited_at, c1, keyence, c2 FROM can"
+        " WHERE run_id = ? AND rejected = 1 ORDER BY exited_at DESC, position DESC LIMIT ?",
+        (run_id, limit),
+    ).fetchall()
+    return [{"position": r["position"], "exited_at": r["exited_at"],
+             "flags": [c for c in CAMERAS if r[c]]} for r in rows]
+
+
 def live_state(conn, now):
     """Everything the operator screen shows, in one snapshot."""
     active = conn.execute("SELECT id FROM run WHERE status = 'active'").fetchone()
@@ -211,7 +226,13 @@ def live_state(conn, now):
         "now": now,
         "cameras": [{"key": k, "name": CAMERA_NAMES[k]} for k in CAMERAS],
         "rjpi": rjpi_status(conn, now),
-        "active": run_detail(conn, active["id"]) if active else None,
+        "active": _with_rejections(conn, run_detail(conn, active["id"])) if active else None,
         "finishing": [run_summary(conn, r["id"]) for r in finishing],
         "unassigned_recent": unassigned,
     }
+
+
+def _with_rejections(conn, detail):
+    if detail is not None:
+        detail["rejections"] = recent_rejections(conn, detail["run"]["id"])
+    return detail
