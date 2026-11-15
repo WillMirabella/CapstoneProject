@@ -79,10 +79,16 @@ python3 tools/replay.py --cans 300 --rate 5
 Stop the run on the operator screen when the replay says all cans were sent.
 The replay then idles like a real Rj-Pi; Ctrl-C stops it.
 
+By default 3% of cans have a real defect, and each camera catches a real
+defect 90% of the time, so most rejections are flagged by all three cameras.
+On top of that, each camera flags about 1 in 500 good cans on its own.
+
 | To see | Add to the replay command |
 | --- | --- |
-| A camera over-flagging | `--defects telodyne=0.15` |
-| A validation run (match the positions you entered on screen) | `--cans 40 --defects 0 --seed-defects 5:c1,20:keyence,33:` |
+| A camera over-flagging good cans | `--false-flags telodyne=0.15` |
+| A camera missing real defects | `--detect keyence=0.6` |
+| A bad shipment (more real defects) | `--defect-rate 0.1` |
+| A validation run (match the positions you entered on screen) | `--cans 40 --seed-defects 5:c1,20:keyence,33:` |
 | Lost network messages | `--drop-rate 0.02` |
 | The Rj-Pi rebooting mid-run | `--restart-at 100` |
 | Everything faster | `--speed 5` |

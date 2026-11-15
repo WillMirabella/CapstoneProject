@@ -1,7 +1,7 @@
 # HUB
 
 Records every can the Rj-Pi handles, labels it with the run it belongs to, and
-serves the operator touchscreen (`/`) and the defect trends dashboard (`/dashboard`).
+serves the operator screen (`/`) and the defect trends dashboard (`/dashboard`).
 
 **Quick start: see [RUNNING.md](RUNNING.md)** for starting the HUB, live runs,
 and testing with the simulator.
@@ -46,16 +46,17 @@ Things to try with the replay (`python3 tools/replay.py --help` for all of them)
 
 | Command | What it shows |
 | --- | --- |
-| `--defects telodyne=0.12` | one camera over-flagging |
-| `--cans 40 --defects 0 --seed-defects 5:c1,20:keyence,33:` | a validation run (match the positions you entered on screen; `33:` = every camera misses it) |
+| `--false-flags telodyne=0.12` | one camera over-flagging good cans |
+| `--detect keyence=0.6` | one camera missing real defects the other two catch |
+| `--defect-rate 0.1` | a bad shipment: 10% of cans really defective |
+| `--cans 40 --seed-defects 5:c1,20:keyence,33:` | a validation run (match the positions you entered on screen; `33:` = every camera misses it) |
 | `--drop-rate 0.02` | lost network datagrams: recovered cans and the "events lost" banner |
 | `--restart-at 100` | the Rj-Pi rebooting mid-run: lost cans, run marked incomplete |
 | `--speed 5` | everything 5x faster |
 | Ctrl-C the replay | "Rj-Pi offline" after about 12 s |
 
-To test touch on a phone or tablet, connect it to the same Wi-Fi and open
-`http://<your laptop's IP>:8000`. In desktop Chrome, DevTools device mode at
-800x480 matches the official Raspberry Pi 7" touchscreen.
+The operator screen is laid out for a laptop browser. To check it on a phone
+or tablet, connect it to the same Wi-Fi and open `http://<your laptop's IP>:8000`.
 
 ## Dashboard
 
@@ -81,7 +82,7 @@ have their own table. Every chart has a Table button with the same numbers.
     hub/tracker.py    Rj-Pi events + operator actions -> runs and cans
     hub/reports.py    run summary, validation scoring, operator-screen state
     hub/dashboard.py  dashboard aggregates + runs CSV export
-    web/              operator touchscreen + dashboard (plain HTML/CSS/JS + SVG, works offline)
+    web/              operator screen + dashboard (plain HTML/CSS/JS + SVG, works offline)
     tools/replay.py   fake Rj-Pi
     tools/demo_data.py  fake shipments and run history
     tests/            driven by ../Rejector/simulation events

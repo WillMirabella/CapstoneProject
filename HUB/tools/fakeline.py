@@ -23,7 +23,14 @@ def camera(name):
 
 
 def parse_rates(text, default):
-    """"telodyne=0.1,keyence=0.02" -> {"telodyne": 0.1, "keyence": 0.02, "elp": default}"""
+    """"telodyne=0.1,keyence=0.02" -> {"telodyne": 0.1, "keyence": 0.02, "elp": default}
+
+    A bare number sets all three cameras: "0.9" -> {"telodyne": 0.9, ...}.
+    """
+    try:
+        return dict.fromkeys(SIM_CAMERAS, float(text))
+    except (TypeError, ValueError):
+        pass
     rates = dict.fromkeys(SIM_CAMERAS, default)
     for part in filter(None, (p.strip() for p in (text or "").split(","))):
         name, _, value = part.partition("=")
@@ -44,12 +51,24 @@ def parse_seeds(text):
     return seeds
 
 
-def make_events(num_cans, rates, seeds=None, cans_per_second=3.0, seed=None):
-    """Simulated events for num_cans cans, each with "t" = seconds since start."""
+def make_events(num_cans, rates, seeds=None, cans_per_second=3.0, seed=None,
+                defect_rate=0.0, detect=None):
+    """Simulated events for num_cans cans, each with "t" = seconds since start.
+
+    Two ways a camera flags a can:
+      * defect_rate: chance a can is really defective. Each camera then catches it
+        with its own `detect` chance, so a real defect is usually flagged by all three.
+      * rates: per-camera chance of flagging a good can on its own (false flags).
+    seeds (validation) override both for the positions they list.
+    """
     rng = random.Random(seed)
+    detect = detect or dict.fromkeys(SIM_CAMERAS, 1.0)
     forced = {}
     for can_id in range(1, num_cans + 1):
-        cams = {c for c in SIM_CAMERAS if rng.random() < rates.get(c, 0)}
+        cams = set()
+        if rng.random() < defect_rate:
+            cams = {c for c in SIM_CAMERAS if rng.random() < detect.get(c, 0)}
+        cams |= {c for c in SIM_CAMERAS if rng.random() < rates.get(c, 0)}
         if cams:
             forced[can_id] = cams
     for position, cams in (seeds or {}).items():
