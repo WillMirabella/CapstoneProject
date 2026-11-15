@@ -8,8 +8,9 @@ health events, like an idle Rj-Pi, until you press Ctrl-C.
 Examples (from the HUB folder):
     python3 tools/replay.py                              # 2000 cans, 3 per second
     python3 tools/replay.py --cans 300 --rate 10 --speed 2
-    python3 tools/replay.py --defects telodyne=0.12      # camera 1 over-flags
-    python3 tools/replay.py --cans 80 --defects 0 --seed-defects 5:c1,20:keyence,41:
+    python3 tools/replay.py --false-flags telodyne=0.12  # camera 1 over-flags
+    python3 tools/replay.py --detect keyence=0.6         # Keyence misses real defects
+    python3 tools/replay.py --cans 80 --seed-defects 5:c1,20:keyence,41:
     python3 tools/replay.py --drop-rate 0.01 --restart-at 400
 """
 
@@ -121,11 +122,16 @@ def main(argv=None):
     parser.add_argument("--rate", type=float, default=3.0, help="cans per second")
     parser.add_argument("--speed", type=float, default=1.0,
                         help="time multiplier: 2 = twice as fast as real time")
-    parser.add_argument("--defect-rate", type=float, default=0.03,
-                        help="chance each camera flags a can (default 0.03)")
-    parser.add_argument("--defects", default="",
-                        help="per-camera rates, e.g. telodyne=0.1,elp=0. "
-                             "A bare number sets all three, e.g. --defects 0")
+    parser.add_argument("--defect-rate", type=float, default=None,
+                        help="fraction of cans with a real defect (default 0.03; "
+                             "0 when --seed-defects is given)")
+    parser.add_argument("--detect", default="0.9",
+                        help="chance each camera catches a real defect: one number for all "
+                             "three, or per camera, e.g. keyence=0.6 (default 0.9)")
+    parser.add_argument("--false-flags", "--defects", dest="false_flags", default=None,
+                        help="chance a camera flags a good can on its own: one number, or "
+                             "per camera, e.g. telodyne=0.1 (default 0.002; "
+                             "0 when --seed-defects is given)")
     parser.add_argument("--seed-defects", default="",
                         help="known defects for a validation run: position:cameras "
                              "that detect it, e.g. 5:c1,20:keyence,41:c1+c2,60: "
@@ -139,12 +145,12 @@ def main(argv=None):
                         help="stop instead of idling with health events")
     args = parser.parse_args(argv)
 
-    try:
-        float(args.defects)
-        rates = parse_rates("", float(args.defects))
-    except ValueError:
-        rates = parse_rates(args.defects, args.defect_rate)
     seeds = parse_seeds(args.seed_defects)
+    # A validation run should only flag the seeded cans unless asked otherwise.
+    defect_rate = args.defect_rate if args.defect_rate is not None else (0.0 if seeds else 0.03)
+    false_flags = args.false_flags if args.false_flags is not None else ("0" if seeds else "")
+    rates = parse_rates(false_flags, 0.002)
+    detect = parse_rates(args.detect, 0.9)
     rng = random.Random(args.seed)
     addr = (args.host, args.port)
 
@@ -153,11 +159,15 @@ def main(argv=None):
         segments = [args.restart_at, args.cans - args.restart_at]
 
     print(f"Fake Rj-Pi -> {addr[0]}:{addr[1]}  cans={args.cans} rate={args.rate}/s "
-          f"speed={args.speed}x  rates={rates}")
+          f"speed={args.speed}x")
+    print(f"  real defects: {defect_rate:.1%} of cans, caught by "
+          + ", ".join(f"{c} {p:.0%}" for c, p in detect.items()))
+    print("  false flags: " + ", ".join(f"{c} {p:.1%}" for c, p in rates.items()))
     try:
         for i, num_cans in enumerate(segments):
             events = make_events(num_cans, rates, seeds if i == 0 else None,
-                                 cans_per_second=args.rate, seed=rng.randrange(2**32))
+                                 cans_per_second=args.rate, seed=rng.randrange(2**32),
+                                 defect_rate=defect_rate, detect=detect)
             if i < len(segments) - 1:
                 # Power cut right after the last can of this segment enters:
                 # cans still on the belt never report their exit.
