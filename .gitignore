@@ -1,1 +1,5 @@
 *:Zone.Identifier
+
+# Python bytecode cache (rebuilt automatically)
+__pycache__/
+*.py[cod]
