@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>Line Operator</title>
+  <link rel="stylesheet" href="/static/operator.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Line HUB</div>
+    <div id="rjpi" class="pill pill-wait"><span class="dot"></span><span id="rjpi-text">Waiting for Rj-Pi</span></div>
+    <div id="belt" class="topstat"></div>
+    <div id="clock" class="topstat"></div>
+    <a class="toplink" href="/dashboard">Dashboard</a>
+  </header>
+
+  <div id="banners"></div>
+
+  <main id="view"></main>
+
+  <div id="finishing"></div>
+
+  <!-- New shipment form -->
+  <dialog id="ship-dialog">
+    <form id="ship-form" method="dialog">
+      <h2>New shipment</h2>
+      <div class="form-grid">
+        <label>Supplier *<input name="supplier" required autocomplete="off"></label>
+        <label>Arrival date<input name="arrival_date" type="date"></label>
+        <label>PO number<input name="po_number" autocomplete="off"></label>
+        <label>Bill of lading<input name="bill_of_lading" autocomplete="off"></label>
+        <label>Carrier<input name="carrier" autocomplete="off"></label>
+        <label>Tracking number<input name="tracking_number" autocomplete="off"></label>
+        <label class="wide">Notes<input name="notes" autocomplete="off"></label>
+      </div>
+      <h3>SKUs in this shipment</h3>
+      <div id="ship-lines"></div>
+      <button type="button" class="btn btn-ghost" id="ship-add-line">+ Add SKU</button>
+      <p class="form-error" id="ship-error"></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-ghost" id="ship-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save shipment</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="/static/operator.js"></script>
+</body>
+</html>

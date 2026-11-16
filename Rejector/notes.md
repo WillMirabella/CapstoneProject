@@ -54,3 +54,40 @@ bool c1
 bool Keyence
 bool c2
 int ACN
+
+## ACN vs RACN (current)
+
+- **ACN**: the Rj-Pi's total count of cans past the entry sensor since startup
+  (1, 2, 3, ...). Never wraps. `RejectItem.acn` and every HUB event use it.
+- **RACN**: `ACN % 256`, the 1-byte number the cameras count and send.
+  Camera packet formats are unchanged:
+  - Telodyne / ELP: 2 bytes `[SystemNumber, RACN]`
+  - Keyence: 1 byte `[RACN]`
+- `RejectorPi.racn_to_acn()` maps an incoming RACN to the on-belt can's ACN.
+  This needs fewer than 256 cans between the entry and exit sensors.
+- ACN restarts at 1 when the Rj-Pi restarts, so the HUB keys cans by
+  `(session, acn)`.
+
+## Rj-Pi -> HUB events
+
+UDP to the HUB on port 5001, one compact JSON object per datagram,
+fire-and-forget (the Rj-Pi never waits on the HUB). Every event has:
+
+| Field     | Meaning                                                       |
+| --------- | ------------------------------------------------------------- |
+| `e`       | event type (below)                                            |
+| `session` | random hex id chosen at Rj-Pi startup                         |
+| `seq`     | 0, 1, 2, ... per session; a gap means datagrams were lost     |
+| `t`       | seconds since Rj-Pi startup (the HUB stamps wall-clock time) |
+
+| `e`               | Extra fields                                       | When                                     |
+| ----------------- | -------------------------------------------------- | ---------------------------------------- |
+| `hello`           |                                                    | Rj-Pi started                            |
+| `entry`           | `acn`                                              | can passed the entry sensor              |
+| `flag`            | `src` (c1/keyence/c2), `acn`                       | valid reject request for an on-belt can  |
+| `late`            | `src`, `racn`                                      | reject request for a can no longer on the belt |
+| `invalid`         | `data` (hex bytes)                                 | malformed packet                         |
+| `exit`            | `acn`, `rejected`, `c1`, `keyence`, `c2`           | can reached the exit sensor              |
+| `unexpected_exit` |                                                    | exit sensor fired with no can on the belt |
+| `overflow`        |                                                    | entry refused: 255 cans already on belt  |
+| `health`          | `entry_acn`, `exit_acn`, `cans_on_belt`, counters  | every 5 s                                |

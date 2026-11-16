@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Defect Trends</title>
+  <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body>
+  <header class="top">
+    <h1>Defect trends</h1>
+    <nav>
+      <a href="/">Operator screen</a>
+      <a href="/dashboard" aria-current="page">Dashboard</a>
+    </nav>
+  </header>
+
+  <div class="filters" role="search">
+    <div class="segmented" id="range" role="radiogroup" aria-label="Date range">
+      <button role="radio" data-days="7">7 days</button>
+      <button role="radio" data-days="30">30 days</button>
+      <button role="radio" data-days="90">90 days</button>
+      <button role="radio" data-days="365">1 year</button>
+    </div>
+    <label class="select">Supplier
+      <select id="f-supplier"><option value="">All suppliers</option></select>
+    </label>
+    <label class="select">SKU
+      <select id="f-sku"><option value="">All SKUs</option></select>
+    </label>
+    <span class="grow"></span>
+    <span class="updated" id="updated"></span>
+    <a class="btn" id="export" href="#">Export runs (CSV)</a>
+  </div>
+
+  <main id="main">
+    <section class="kpis" id="kpis" aria-label="Summary"></section>
+
+    <section class="card wide" id="c-reject">
+      <header><div><h2>Reject rate per day</h2><p class="sub">Share of production cans rejected, all cameras combined</p></div><button class="btn small" data-table>Table</button></header>
+      <div class="chart"></div>
+    </section>
+
+    <section class="card wide" id="c-cameras">
+      <header><div><h2>Flag rate by camera, per day</h2><p class="sub">Share of production cans each camera flagged. A camera that drifts away from the others may need recalibrating.</p></div><button class="btn small" data-table>Table</button></header>
+      <div class="legend"></div>
+      <div class="chart"></div>
+    </section>
+
+    <section class="card wide" id="c-shipments">
+      <header><div><h2>Reject rate by shipment</h2><p class="sub">One bar per SKU in each delivery. Flagged when well above the period average with enough cans to be meaningful.</p></div><button class="btn small" data-table>Table</button></header>
+      <div class="chart"></div>
+      <button class="btn small more" hidden>Show all</button>
+    </section>
+
+    <div class="pair">
+      <section class="card" id="c-suppliers">
+        <header><div><h2>Reject rate by supplier</h2></div><button class="btn small" data-table>Table</button></header>
+        <div class="chart"></div>
+      </section>
+      <section class="card" id="c-agreement">
+        <header><div><h2>Camera agreement</h2><p class="sub">Of the cans each camera flagged, how many no other camera flagged</p></div><button class="btn small" data-table>Table</button></header>
+        <div class="legend"></div>
+        <div class="chart"></div>
+      </section>
+    </div>
+
+    <section class="card wide" id="c-validation">
+      <header><div><h2>Validation runs</h2><p class="sub">Known-defective cans seeded on purpose: detected ÷ expected for each camera</p></div></header>
+      <div class="table-wrap"></div>
+    </section>
+
+    <section class="card wide" id="c-runs">
+      <header><div><h2>Runs</h2><p class="sub">Most recent first</p></div></header>
+      <div class="table-wrap"></div>
+    </section>
+
+    <section class="card wide" id="c-health">
+      <header><div><h2>Rejector system health</h2><p class="sub">One row per Rj-Pi power-up. Late requests reached the Rj-Pi after the can had already passed the rejector.</p></div></header>
+      <div class="table-wrap"></div>
+    </section>
+  </main>
+
+  <div id="tooltip" role="tooltip" hidden></div>
+  <script src="/static/dashboard.js"></script>
+</body>
+</html>
