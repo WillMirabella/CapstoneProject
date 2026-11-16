@@ -3,6 +3,9 @@
 How to start the dashboard and operator screen, run live runs, and test
 everything with the simulator when the cameras and Rj-Pi aren't available.
 
+This page is for the Mac. On the Windows laptop, see
+[RUNNING-WSL.md](RUNNING-WSL.md).
+
 All commands run from the `HUB` folder:
 
 ```bash

@@ -1,6 +1,6 @@
 """Rj-Pi main program: connects the hardware and network to RejectorPi.
 
-    USB entry sensor -> on_entry()    (not written yet, see watch_usb_entry_sensor)
+    USB entry sensor -> on_entry()    (PCsensor trigger, read as keyboard events)
     GPIO exit sensor -> on_exit()     -> relay pulse if the can was flagged
     UDP port 5000    -> listen()      -> reject requests from the cameras
     every event      -> HubLink       -> UDP JSON to the HUB (fire-and-forget)
@@ -9,9 +9,12 @@ Keep this file in the same folder as rejector_pi.py and run: python3 rj_main.py
 Stop rj_listener.py first, because both programs use port 5000.
 """
 
+import fcntl
+import glob
 import json
 import os
 import socket
+import struct
 import sys
 import threading
 import time
@@ -24,17 +27,31 @@ from rejector_pi import RejectorPi
 EXIT_SENSOR_PIN = 17  # GPIO17, physical pin 11
 REJECT_RELAY_PIN = 27  # GPIO27, physical pin 13
 
+# USB entry sensor (PCsensor trigger, shows up as a keyboard).
+ENTRY_SENSOR_GLOB = "/dev/input/by-id/*PCsensor*event-kbd"
+
 # TODO: confirm against the actual exit sensor and relay module.
 EXIT_SENSOR_PULL_UP = False  # False: signal goes high at a can. True: goes low.
 RELAY_ACTIVE_HIGH = True  # Many relay modules are active-low; set False for those.
 
 # TODO: tune on the real belt.
+ENTRY_SENSOR_BOUNCE_SECONDS = 0.05  # ignore beam flicker shorter than this
 EXIT_SENSOR_BOUNCE_SECONDS = 0.01  # ignore repeat signals closer together than this
 REJECT_DELAY_SECONDS = 0.0  # wait between the exit sensor and the relay firing
 RELAY_PULSE_SECONDS = 0.1  # how long the relay stays on
 
-# HUB that records runs for the dashboard. Set to None to run without a HUB.
-HUB_ADDR = ("192.168.1.50", 5001)  # TODO: set to the HUB's IP address
+# Linux input_event layout: time_sec, time_usec, type, code, value
+EVENT_FORMAT = "llHHi"
+EVENT_SIZE = struct.calcsize(EVENT_FORMAT)
+EV_KEY = 1
+KEY_DOWN = 1  # beam blocked
+KEY_UP = 0  # beam cleared (2 = auto-repeat while blocked, ignored)
+EVIOCGRAB = 0x40044590  # take the device so keystrokes don't reach the console
+
+# HUB that records runs for the dashboard. If the HUB is off or unreachable,
+# events are dropped and rejecting carries on, so leaving this set is safe.
+# None just stops sending entirely (e.g. on a network with no HUB at all).
+HUB_ADDR = ("192.168.50.50", 5001)  # TODO: set to the HUB's IP address
 HEALTH_INTERVAL_SECONDS = 5.0
 
 
@@ -61,11 +78,17 @@ class HubLink:
         if self.addr is None:
             return
         with self.lock:
-            packet = dict(event, session=self.session, seq=self.seq,
-                          t=round(time.monotonic() - self.started, 4))
+            packet = dict(
+                event,
+                session=self.session,
+                seq=self.seq,
+                t=round(time.monotonic() - self.started, 4),
+            )
             self.seq += 1
         try:
-            self.sock.sendto(json.dumps(packet, separators=(",", ":")).encode(), self.addr)
+            self.sock.sendto(
+                json.dumps(packet, separators=(",", ":")).encode(), self.addr
+            )
         except OSError:
             pass  # HUB unreachable or send buffer full; never stall the rejector
 
@@ -99,12 +122,27 @@ def pulse_relay():
     relay.blink(on_time=RELAY_PULSE_SECONDS, off_time=0, n=1)
 
 
-def watch_usb_entry_sensor():
-    """TODO: read the USB entry sensor and call on_entry() once per can.
+def find_entry_sensor():
+    matches = glob.glob(ENTRY_SENSOR_GLOB)
+    if not matches:
+        sys.exit(f"USB entry sensor not found ({ENTRY_SENSOR_GLOB}). Is it plugged in?")
+    return matches[0]
 
-    Count changes, not readings: call on_entry() only when the sensor goes from
-    clear to blocked, never again while it stays blocked.
-    """
+
+def watch_usb_entry_sensor(path):
+    """Read the USB entry sensor and call on_entry() once per can."""
+    last_release = 0.0
+    with open(path, "rb") as f:
+        fcntl.ioctl(f, EVIOCGRAB, 1)
+        while True:
+            _, _, etype, _, value = struct.unpack(EVENT_FORMAT, f.read(EVENT_SIZE))
+            if etype != EV_KEY:
+                continue
+            if value == KEY_DOWN:
+                if time.monotonic() - last_release >= ENTRY_SENSOR_BOUNCE_SECONDS:
+                    on_entry()
+            elif value == KEY_UP:
+                last_release = time.monotonic()
 
 
 def send_health():
@@ -136,6 +174,9 @@ def main():
     if EXIT_SENSOR_PIN is None or REJECT_RELAY_PIN is None:
         sys.exit("Set EXIT_SENSOR_PIN and REJECT_RELAY_PIN at the top of rj_main.py")
 
+    entry_path = find_entry_sensor()
+    print("Entry sensor:", entry_path)
+
     relay = DigitalOutputDevice(
         REJECT_RELAY_PIN, active_high=RELAY_ACTIVE_HIGH, initial_value=False
     )
@@ -146,7 +187,9 @@ def main():
     )
     exit_sensor.when_activated = on_exit
 
-    threading.Thread(target=watch_usb_entry_sensor, daemon=True).start()
+    threading.Thread(
+        target=watch_usb_entry_sensor, args=(entry_path,), daemon=True
+    ).start()
     threading.Thread(target=send_health, daemon=True).start()
     listen()
 
