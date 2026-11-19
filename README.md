@@ -9,15 +9,26 @@ belt. Team 2 builds the two pieces that tie them together:
 - **HUB:** a server that records every can the Rj-Pi handles. It runs the
   operator screen and the defect trends dashboard.
 
+**On the belt** (cans move left to right):
+
 ```
-entry sensor -> Telodyne (c1) -> Keyence -> ELP (c2) -> exit sensor / reject relay
-     |               |              |          |                 |
-     |               +--- UDP :5000 reject requests --+          |
-     v                                                v          v
-                              Rj-Pi  ----- UDP :5001 events ----> HUB (web :8000)
+entry sensor ─> Telodyne (c1) ─> Keyence ─> ELP (c2) ─> exit sensor + reject relay
 ```
 
-All devices connect to one Ethernet switch.
+**Data flow:**
+
+```
+Telodyne (c1) ──┐
+Keyence ────────┼─ UDP :5000 ─> Rj-Pi ─ UDP :5001 ─> HUB <─ HTTP :8000 ─ browsers
+ELP (c2) ───────┘                │ ▲
+                                 │ ├── entry sensor (USB)
+                                 │ └── exit sensor (GPIO17)
+                                 └───> reject relay (GPIO27)
+```
+
+Arrows point toward the receiving device, and each port belongs to that
+device. The cameras, the Rj-Pi, and the HUB all connect to one Ethernet switch. The
+sensors and the relay are wired straight to the Rj-Pi.
 
 | Folder | Contents |
 | --- | --- |
