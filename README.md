@@ -1,7 +1,6 @@
-# Team 2: Can Line Rejector and HUB
+# Can Line Rejector and HUB
 
-This repo holds Team 2's capstone work. Three camera systems inspect cans on the
-belt. Team 2 builds the two pieces that tie them together:
+This repo currently holds Will's work for the Rejector and the HUB:
 
 - **Rejector (Rj-Pi):** a Raspberry Pi that takes reject requests from every
   camera, matches each one to the right can, and fires the reject relay when that
