@@ -57,13 +57,13 @@ class PacketFormatTests(unittest.TestCase):
         scheduler.run()
         self.assertEqual(switch.sent, [])
 
-    def test_camera_acn_wraps_at_256(self):
+    def test_camera_racn_wraps_at_256(self):
         camera = KeyenceCamera(EventScheduler(), FakeSwitch(), RejectorPi.PORT, 0.1)
-        acns = []
+        racns = []
         for can_id in range(1, 260):
             camera.on_can(Can(can_id, frozenset()))
-            acns.append(camera.acn)
-        self.assertEqual(acns[254:259], [255, 0, 1, 2, 3])
+            racns.append(camera.racn)
+        self.assertEqual(racns[254:259], [255, 0, 1, 2, 3])
 
     def test_switch_rejects_non_bytes(self):
         import random
@@ -84,16 +84,47 @@ class RejectorPiTests(unittest.TestCase):
     def test_reject_item(self):
         self.assertFalse(RejectItem(5).should_reject)
         self.assertTrue(RejectItem(5, keyence=True).should_reject)
+        self.assertEqual(RejectItem(5).racn, 5)
+        self.assertEqual(RejectItem(256).racn, 0)
+        self.assertEqual(RejectItem(1000).racn, 1000 % 256)
 
-    def test_entry_and_exit_acns_wrap_together(self):
+    def test_entry_and_exit_acns_count_without_wrapping(self):
         rj = RejectorPi()
         entries, exits = [], []
         for _ in range(600):
             entries.append(rj.on_entry_sensor())
             exits.append(rj.on_exit_sensor()[0])
         self.assertEqual(entries, exits)
-        self.assertEqual(entries[:3], [1, 2, 3])
-        self.assertEqual(entries[254:258], [255, 0, 1, 2])
+        self.assertEqual(entries, list(range(1, 601)))
+
+    def test_racn_maps_to_on_belt_acn(self):
+        rj = RejectorPi()
+        for _ in range(200):
+            rj.on_entry_sensor()
+            rj.on_exit_sensor()
+        for _ in range(100):
+            rj.on_entry_sensor()
+        # ACNs 201..300 are on the belt.
+        self.assertEqual(rj.racn_to_acn(201 % 256), 201)
+        self.assertEqual(rj.racn_to_acn(255), 255)
+        self.assertEqual(rj.racn_to_acn(0), 256)
+        self.assertEqual(rj.racn_to_acn(300 % 256), 300)
+        self.assertIsNone(rj.racn_to_acn(200 % 256))  # exited
+        self.assertIsNone(rj.racn_to_acn(301 % 256))  # not entered yet
+
+    def test_flag_after_wraparound_sets_full_acn(self):
+        rj = RejectorPi()
+        for _ in range(250):
+            rj.on_entry_sensor()
+            rj.on_exit_sensor()
+        for _ in range(8):
+            rj.on_entry_sensor()
+        # ACNs 251..258 are on the belt.
+        rj.receive(bytes([1, 257 % 256]))  # Telodyne flags RACN 1 -> ACN 257
+        self.assertEqual(set(rj.reject_items), {257})
+        results = [rj.on_exit_sensor() for _ in range(8)]
+        self.assertEqual([r for r in results if r[1]], [(257, True)])
+        self.assertEqual(rj.rejection_log, [RejectItem(257, c1=True)])
 
     def test_rejects_flagged_can_only(self):
         rj = RejectorPi()
@@ -139,6 +170,51 @@ class RejectorPiTests(unittest.TestCase):
             rj.on_entry_sensor()
         with self.assertRaises(OverflowError):
             rj.on_entry_sensor()
+        self.assertEqual(rj.overflows, 1)
+        self.assertEqual(rj.entry_acn, 255)
+
+
+class HubEventTests(unittest.TestCase):
+    def make(self):
+        events = []
+        return RejectorPi(emit=events.append), events
+
+    def test_entry_flag_exit_events(self):
+        rj, events = self.make()
+        rj.on_entry_sensor()
+        rj.on_entry_sensor()
+        rj.receive(b"\x02")  # Keyence flags ACN 2
+        rj.on_exit_sensor()
+        rj.on_exit_sensor()
+        self.assertEqual(events, [
+            {"e": "entry", "acn": 1},
+            {"e": "entry", "acn": 2},
+            {"e": "flag", "src": "keyence", "acn": 2},
+            {"e": "exit", "acn": 1, "rejected": False,
+             "c1": False, "keyence": False, "c2": False},
+            {"e": "exit", "acn": 2, "rejected": True,
+             "c1": False, "keyence": True, "c2": False},
+        ])
+
+    def test_problem_events(self):
+        rj, events = self.make()
+        rj.on_exit_sensor()
+        rj.receive(b"\x09\x01")
+        rj.receive(b"\x01\x05")
+        self.assertEqual(events, [
+            {"e": "unexpected_exit"},
+            {"e": "invalid", "data": "0901"},
+            {"e": "late", "src": "c1", "racn": 5},
+        ])
+
+    def test_stats(self):
+        rj, _ = self.make()
+        rj.on_entry_sensor()
+        rj.receive(b"\x01\x01")
+        stats = rj.stats()
+        self.assertEqual(stats["entry_acn"], 1)
+        self.assertEqual(stats["cans_on_belt"], 1)
+        self.assertEqual(stats["packets_received"], 1)
 
 
 class SimulationTests(unittest.TestCase):
@@ -148,6 +224,9 @@ class SimulationTests(unittest.TestCase):
         self.assertEqual(result.acn_mismatches, [])
         self.assertEqual(result.rejector.cans_on_belt, 0)
         self.assertEqual(result.rejector.reject_items, {})
+        # The Rj-Pi's ACN is the true can number, so its log matches ground truth.
+        self.assertEqual({item.acn for item in result.rejector.rejection_log},
+                         result.rejected_ids)
 
     def test_default_run_passes(self):
         result = run_simulation(SimConfig())
@@ -216,6 +295,14 @@ class SimulationTests(unittest.TestCase):
         result = run_simulation(SimConfig(drop_rate=1.0))
         self.assertEqual(result.rejected_ids, set())
         self.assertEqual(result.missed_rejects, result.defective_ids)
+
+    def test_hub_gets_one_entry_and_exit_per_can(self):
+        result = run_simulation(SimConfig(num_cans=600))
+        entries = [e["acn"] for e in result.hub_events if e["e"] == "entry"]
+        exits = [e for e in result.hub_events if e["e"] == "exit"]
+        self.assertEqual(entries, list(range(1, 601)))
+        self.assertEqual([e["acn"] for e in exits], list(range(1, 601)))
+        self.assertEqual({e["acn"] for e in exits if e["rejected"]}, result.rejected_ids)
 
     def test_deterministic_with_seed(self):
         a = run_simulation(SimConfig(seed=42))

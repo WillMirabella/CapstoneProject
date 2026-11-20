@@ -1,4 +1,4 @@
-"""Rejector system simulation (No-Star mode: every AS sends 1-byte ACNs).
+"""Rejector system simulation (every AS sends a 1-byte RACN = ACN % 256).
 
 Belt layout (positions in meters from the entry sensor):
 
@@ -115,7 +115,7 @@ class SimConfig:
         max_on_belt = int(self.exit_pos / self.can_spacing) + 1
         if max_on_belt >= ACN_MODULO:
             raise ValueError(
-                f"up to {max_on_belt} cans fit on the belt; a 1-byte ACN needs fewer than "
+                f"up to {max_on_belt} cans fit on the belt; a 1-byte RACN needs fewer than "
                 f"{ACN_MODULO}"
             )
 
@@ -125,6 +125,7 @@ class SimResult:
     defective_ids: set
     rejected_ids: set
     acn_mismatches: list = field(default_factory=list)  # (can_id, expected, got, where)
+    hub_events: list = field(default_factory=list)  # dicts the Rj-Pi would send the HUB
     rejector: RejectorPi = None
     cameras: dict = None
     switch: Switch = None
@@ -170,7 +171,13 @@ def run_simulation(config=None):
     switch = Switch(
         scheduler, rng, config.network_latency, config.network_jitter, config.drop_rate
     )
-    rejector = RejectorPi(log=log)
+    hub_events = []
+
+    def emit(event):
+        # t = seconds since the simulation started, like HubLink's t on the Rj-Pi.
+        hub_events.append(dict(event, t=round(scheduler.now, 4)))
+
+    rejector = RejectorPi(log=log, emit=emit)
     switch.register(RejectorPi.PORT, rejector.receive)
 
     cameras = {
@@ -199,16 +206,18 @@ def run_simulation(config=None):
         rejector=rejector,
         cameras={name: camera for name, (camera, _) in cameras.items()},
         switch=switch,
+        hub_events=hub_events,
     )
 
     def check_acn(can, got, where):
-        expected = can.can_id % ACN_MODULO
+        # The Rj-Pi reports the full ACN; cameras only count the 1-byte RACN.
+        expected = can.can_id if where in ("entry", "exit") else can.can_id % ACN_MODULO
         if got != expected:
             result.acn_mismatches.append((can.can_id, expected, got, where))
 
     def camera_trigger(camera, can):
         camera.on_can(can)
-        check_acn(can, camera.acn, camera.NAME)
+        check_acn(can, camera.racn, camera.NAME)
 
     def can_enters(can):
         check_acn(can, rejector.on_entry_sensor(), "entry")
@@ -234,7 +243,7 @@ def run_simulation(config=None):
 
 def print_summary(result):
     rejector = result.rejector
-    print("=== Rejector Simulation (No-Star, 1-byte ACN) ===")
+    print("=== Rejector Simulation (1-byte RACN) ===")
     print(f"Defective cans:      {len(result.defective_ids)}")
     print(f"Rejected cans:       {len(result.rejected_ids)}")
     print(
